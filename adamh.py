@@ -9,20 +9,29 @@ import math
 
 class AdaboostMH:
     def __init__(self, filename, T):
+        # 弱分类器最大数目
         self.T = T
-        # raw data
+
+        # 原始数据，前70%作为训练数据，后30%作为测试数据
         self.rawdata = []
         self.rawlabel = []
         self.testdata = []
         self.testlabel = []
 
-        # used to train weak hypotheis
+        # 扩展后的数据集和对应的类，转化为对应的二分类问题
         self.data = [] # processed data
         self.target = []
 
+        # 从数据文件中读取数据，并扩展数据
         self.loaddata(filename)
+
+        # 弱分类器
         self.classifier = []
+
+        # 样本权重
         self.D = np.array([1. / len(self.target) for i in range(len(self.target))])
+
+        # 分类器权重
         self.alpha = []
 
     def loaddata(self, filename):
@@ -52,26 +61,31 @@ class AdaboostMH:
                     self.target.append(1)
                 else:
                     self.target.append(-1)
-        #self.rawdata = np.array(self.rawdata)
-        #self.data = np.array(self.data)
-        #self.rawlabel = np.array(self.rawlabel)
-        #self.target = np.array(self.target)
 
     def train(self):
         for i in range(self.T):
             print("Training for the %dth weak classifier..." % (i+1))
+            # 训练弱分类器
             cur_clf = GaussianNB()
             cur_clf.fit(self.data, self.target, sample_weight=self.D)
+
+            # 计算错误率
             results, error_rate = self.get_error_rate(cur_clf)
             print("Error rate is %f" % (error_rate))
+
+            # 计算弱分类器权重
             alpha = math.log(1/error_rate - 1) / 2
             print("Alpha is %f" % (alpha))
+
+            # 弱分类器错误率大于0.5，停止训练
             if error_rate >= 0.5:
                 print("Error rate is larger than 0.5, stop training...")
                 break
 
             self.classifier.append(cur_clf)
             self.alpha.append(alpha)
+
+            # 更新样本权重
             self.update_weight(alpha, results)
 
     def get_error_rate(self, clf):
@@ -91,6 +105,8 @@ class AdaboostMH:
 
     def test(self):
         print("Test sample num: %d" % (len(self.testlabel)))
+
+        # 拓展测试数据集
         data_ext = []
         result_exp = []
         for i in range(len(self.testdata)):
