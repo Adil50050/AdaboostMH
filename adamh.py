@@ -3,8 +3,8 @@
 Implement of Adaboost.MH
 """
 import numpy as np
-from sklearn.naive_bayes import GaussianNB
-from sklearn.metrics import accuracy_score
+from sklearn.svm import LinearSVC
+# from sklearn.metrics import accuracy_score
 import math
 
 class AdaboostMH:
@@ -17,6 +17,7 @@ class AdaboostMH:
         self.rawlabel = []
         self.testdata = []
         self.testlabel = []
+
 
         # 扩展后的数据集和对应的类，转化为对应的二分类问题
         self.data = [] # processed data
@@ -46,7 +47,7 @@ class AdaboostMH:
             self.rawdata.append(list(map(int,splited_line[1:])))
             self.rawlabel.append(ord(splited_line[0]))
 
-        self.labels = set(np.array(self.rawlabel))
+        self.labels = list(set(np.array(self.rawlabel)))
         idx = int(len(self.rawlabel) * 0.7)
         self.testdata = self.rawdata[idx:]
         self.testlabel = self.rawlabel[idx:]
@@ -66,7 +67,7 @@ class AdaboostMH:
         for i in range(self.T):
             print("Training for the %dth weak classifier..." % (i+1))
             # 训练弱分类器
-            cur_clf = GaussianNB()
+            cur_clf = LinearSVC()
             cur_clf.fit(self.data, self.target, sample_weight=self.D)
 
             # 计算错误率
@@ -108,38 +109,66 @@ class AdaboostMH:
 
         # 拓展测试数据集
         data_ext = []
-        result_exp = []
+        label_ext = []
         for i in range(len(self.testdata)):
             #print(self.testdata[i])
-            for label in self.labels:
+            for j in range(len(self.labels)):
                 tmpdata = list(self.testdata[i])
-                tmpdata.append(label)
+                tmpdata.append(self.labels[j])
                 #print(tmpdata)
                 data_ext.append(tmpdata)
-                if self.testlabel[i] == label:
-                    result_exp.append(1)
+                if self.labels[j] == self.testlabel[i]:
+                    label_ext.append(1)
                 else:
-                    result_exp.append(-1)
+                    label_ext.append(-1)
         predict = []
         for clf in self.classifier:
-            predict.append(clf.predict(np.array(data_ext)))
-        result = []
-        for i in range(len(data_ext)):
-            ret = 0.
-            for j in range(len(self.classifier)):
-                ret += (self.alpha[j] * predict[j][i])
-            if ret >= 0:
-                result.append(1)
+            print(clf.classes_)
+            curpredict = clf.predict_proba(data_ext)
+            predict.append(curpredict)
+        count = 0
+        fuck = []
+        for i in range(len(label_ext)):
+            # print(label_ext[i], predict[0][i])
+            if predict[0][i][1] < predict[0][i][0]:
+                fuck.append(-1)
             else:
-                result.append(-1)
+                fuck.append(1)
+        print('Error rate:', accuracy_score(label_ext, fuck))
+        # print(predict[0][0])
+        allret = []
+        for i in range(len(data_ext)):
+            ret = np.array([0., 0.])
+            for j in range(len(self.classifier)):
+                # print(self.alpha[j], predict[j][i])
+                ret += (self.alpha[j] * predict[j][i])
+            # print(ret)
+            allret.append(ret)
 
+        result = []
+        for i in range(len(self.testlabel)):
+            curmax = 0
+            curlabel = 0
+            # print("for test sample %d" % (i))
+            # print("Raw data is:", self.testdata[i])
+            # print("Should be:", self.rawlabel[i])
+            for j in range(len(self.labels)):
+                # print("Extened data is:", data_ext[i * len(self.labels) + j])
+                # print("CLF 0:", predict[0][i * len(self.labels) + j])
+                # print("CLF 1:", predict[1][i * len(self.labels) + j])
+                # print(allret[i * len(self.labels) + j])
+                if allret[i * len(self.labels) + j][1] > curmax:
+                    curmax = allret[i * len(self.labels) + j][1]
+                    curlabel = self.labels[j]
+            result.append(curlabel)
+            # print("Result is:", curlabel)
         error_num = 0
         for i in range(len(result)):
-            if result_exp[i] != result[i]:
+            if self.testlabel[i] != result[i]:
                 error_num += 1
         print("Error rate is %f" % (float(error_num)/len(result)))
 
 if __name__ == '__main__':
-    adaboostMH = AdaboostMH('letter-recognition.data', 6)
+    adaboostMH = AdaboostMH('letter-recognition.data', 1)
     adaboostMH.train()
     adaboostMH.test()
